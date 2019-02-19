@@ -33,7 +33,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    *   (and others in this file).
    */
 
-  num_particles = 4000;  // TODO: Set the number of particles
+  num_particles = 800;  // TODO: Set the number of particles
 
   std::default_random_engine gen;
 
@@ -70,13 +70,15 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
 	double yaw_dt = yaw_rate*delta_t;
-std::cout << "predict_start"<< std::endl;
+	double init_x;
+	double init_y;
+	double init_theta;
 	for (int i = 0; i < num_particles; ++i)
 	   {
 	      // Sample from these normal distributions
-	//	double init_x = particles[i].x;
-	//	double init_y = particles[i].y;
-		double init_theta = particles[i].theta;
+		 init_x = particles[i].x;
+		 init_y = particles[i].y;
+		 init_theta = particles[i].theta;
 
 			particles[i].x		+= (velocity/yaw_rate)*(sin(init_theta+yaw_dt)-sin(init_theta));
 			particles[i].y		+= (velocity/yaw_rate)*(cos(init_theta)-cos(init_theta+yaw_dt));
@@ -89,11 +91,13 @@ std::cout << "predict_start"<< std::endl;
 		normal_distribution<double> distribution_y(particles[i].y, std_pos[1]);
 		normal_distribution<double> distribution_theta(particles[i].theta, std_pos[2]);
 
-			particles[i].x		= distribution_x(gen);
-			particles[i].y		= distribution_y(gen);
-			particles[i].theta	= distribution_theta(gen);
+		//	particles[i].x		= distribution_x(gen);
+		//	particles[i].y		= distribution_y(gen);
+		//	particles[i].theta	= distribution_theta(gen);
+
+ 
 	   }
-std::cout << "predict+end"<< std::endl;
+
 }
 
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
@@ -131,9 +135,10 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	// Then calculate weight(probability) of this observation
 	// Then calculate overall weight of this particle
 	std::vector<LandmarkObs> T_Obs;
-std::cout << "start update"<< std::endl;
+
 	for (int i = 0; i < num_particles; ++i)
 	   {
+particles[i].weight = 1.0;
 
 		for (int j = 0; j < observations.size(); ++j)
 		   {		
@@ -147,8 +152,8 @@ std::cout << "start update"<< std::endl;
 				//################################################################
 				//Associate above new transformed observation to NearEST landmark
 				int closest_landmark = 0;
-				int min_dist = 999999;
-				int curr_dist;
+				double min_dist = 999999;
+				double curr_dist;
 				// Iterate through all landmarks to check which is closest
 				for (int k = 0; k < map_landmarks.landmark_list.size() ; ++k)
 				{
@@ -174,12 +179,12 @@ std::cout << "start update"<< std::endl;
 				double mark_std_x = std_landmark[0];
 				double mark_std_y = std_landmark[1];
 
-				float exponent = (pow(distance_x - mean_x,2)/(2.0*pow(mark_std_x,2))) +
+				double exponent = (pow(distance_x - mean_x,2)/(2.0*pow(mark_std_x,2))) +
 								(pow(distance_y - mean_y,2)/(2.0*pow(mark_std_y,2)));
 
-				float denominator = 1.0/(2.0*M_PI*mark_std_x*mark_std_y);
+				double denominator = 1.0/(2.0*M_PI*mark_std_x*mark_std_y);
 
-				float Prob = denominator*exp(-exponent) ;
+				double Prob = denominator*exp(-exponent) ;
 
 				particles[i].weight  *=Prob;
 		    }
@@ -188,7 +193,6 @@ std::cout << "start update"<< std::endl;
 		weights[i] = particles[i].weight;
 	   }
 
-std::cout << "end update"<< std::endl;
 }
 
 void ParticleFilter::resample() {
@@ -212,23 +216,45 @@ while (max_weight == 0)
 	double beta = 0.0;
 	for (int i = 0; i < num_particles; ++i)
 	{
-std::cout << "Max_Weight = "<<max_weight<< std::endl;
-std::cout << "random_distr = "<<random_distr(gen)<< std::endl;
+//std::cout << "Max_Weight = "<<max_weight<< std::endl;
+//std::cout << "random_distr = "<<random_distr(gen)<< std::endl;
 		beta += double(2.0 * random_distr(gen) * max_weight);
-std::cout << "Beta = "<<beta<< std::endl;
+//std::cout << "Beta = "<<beta<< std::endl;
 		while (beta > weights[index])
 		{
 			beta -= weights[index];
 			index = (index + 1) % num_particles;
 		}
 
-		resampled_particles.push_back(particles[i]);
-std::cout << "number of resampled = "<<resampled_particles.size()<< std::endl;
+		resampled_particles.push_back(particles[index]);
+//std::cout << "x = "<<particles[i].x << "....y = "<<particles[i].y<< std::endl;
+
 	}
 
-	particles = resampled_particles;
+
 std::cout << "End resample"<< std::endl;
 
+    double highest_old_weight = -1.0;
+    double weight_resampled_sum = 0.0;
+    double highest_resampled_weight = -1.0;
+    double weight_old_sum = 0.0;
+   for (int i = 0; i < num_particles; ++i) {
+     if (particles[i].weight > highest_old_weight) {
+         highest_resampled_weight = resampled_particles[i].weight;
+         highest_old_weight = particles[i].weight;
+         }
+     if (resampled_particles[i].weight > highest_resampled_weight) {
+         highest_resampled_weight = resampled_particles[i].weight;
+
+         }
+     weight_resampled_sum += resampled_particles[i].weight;
+     weight_old_sum += particles[i].weight;
+     }
+
+          std::cout << "highest old w " << highest_old_weight << "...... average old w " << weight_old_sum/num_particles << std::endl;
+          std::cout << "highest res w " << highest_resampled_weight << "...... average res w " << weight_resampled_sum/num_particles << std::endl;
+
+	particles = resampled_particles;
 }
 
 void ParticleFilter::SetAssociations(Particle& particle, 
